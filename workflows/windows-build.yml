@@ -1,0 +1,40 @@
+name: Build FuseFlow for Windows
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'CMakeLists.txt'
+      - 'Source/**'
+      - '.github/workflows/windows-build.yml'
+
+jobs:
+  build-windows:
+    runs-on: windows-2022
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Configure x64 Release build
+        run: cmake -S . -B build -G "Visual Studio 17 2022" -A x64
+
+      - name: Compile FuseFlow
+        run: cmake --build build --config Release --target FuseFlow --parallel
+
+      - name: Collect application
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem -Path build -Recurse -Filter "FuseFlow.exe" | Select-Object -First 1
+          if ($null -eq $exe) { throw "FuseFlow.exe was not found after the build." }
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          Copy-Item $exe.FullName dist/
+          Copy-Item README.md, THIRD_PARTY_NOTICES.md dist/
+
+      - name: Upload app artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: FuseFlow-Windows-x64
+          path: dist/
+          if-no-files-found: error
+          retention-days: 30
